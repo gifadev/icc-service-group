@@ -302,19 +302,28 @@ async def start_capture(
     # === 1. Cek campaign aktif berdasarkan status ENUM 'active' ===
     conn = get_db_connection()
     try:
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("""
-            SELECT c.id AS campaign_id
-            FROM campaign c 
-            WHERE c.status = 'active'
-            ORDER BY c.time_start DESC
-            LIMIT 1
-        """)
-        active_campaign = cursor.fetchone()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT 1
+                FROM campaign
+                WHERE status = 'active'
+                  AND group_id = %s
+                LIMIT 1
+                """,
+                (group_id,)
+            )
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Group {group_id} already has an active campaign. Cannot create a new one"
+                )
+    except HTTPException:
+        # lempar ulang HTTPException agar FastAPI bisa tangani
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error checking active campaigns: {e}")
+        raise HTTPException(status_code=500, detail=f"Error checking active campaign: {e}")
     finally:
-        cursor.close()
         conn.close()
 
     # === 2. Parse device_ips menjadi list of IP string ===
