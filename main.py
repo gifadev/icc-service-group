@@ -3,24 +3,9 @@ from fastapi import FastAPI, HTTPException, Depends, status, Form, WebSocket
 import threading
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
+from typing import List 
 from data_queries import (
-    get_all_campaigns_data,
-    get_latest_campaign_with_unified_data,
     get_campaign_for_ws,
-    get_campaign_with_unified_data_by_id,
-    # delete_campaign_by_id,
-    search_campaign_data_paginate,
-    list_devices,
-    device_information,
-    device_information_detail,
-    devicegroup,
-    get_all_campaigns,
-    remove_device,
-    addDeviceToGroup,
-    deleteuser,
-    editUser,
-    listUser,
-    getPassword
 )
 from auth import router as auth_router
 from fastapi.security import OAuth2PasswordBearer
@@ -572,288 +557,6 @@ async def stop_capture(
         "device_responses": responses
     }
 
-
-# @app.get("/all-campaigns")
-# def get_all_campaigns(
-#     page: int = 1,
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     result = get_all_campaigns_data()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Database error")
-#     return result
-
-# @app.get("/latest-campaign-data")
-# # def get_latest_campaign_unified(page: int = 1, limit: int = 10, current_user: dict = Depends(get_current_user)):
-# def get_latest_campaign_unified(
-#     page: int = 1, 
-#     limit: int = 10,
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = get_latest_campaign_with_unified_data(page=page, limit=limit)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Database error or no data found")
-#     return result
-
-# @app.get("/campaign-data/{campaign_id}")
-# def get_campaign_data_unified(
-#     campaign_id: int, 
-#     page: int = 1, limit: int = 10, 
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = get_campaign_with_unified_data_by_id(campaign_id, page=page, limit=limit)
-#     if result is None:
-#         raise HTTPException(status_code=404, detail=f"Campaign with ID {campaign_id} not found")
-#     return result
-
-# @app.get("/campaign/search-data")
-# def search_campaign_data_endpoint(
-#     id_campaign: int,
-#     q: str,
-#     page: int = 1,
-#     limit: int = 10,
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = search_campaign_data_paginate(id_campaign, q, page=page, limit=limit)
-#     if result is None:
-#         raise HTTPException(status_code=404, detail="No matching data found")
-#     return result
-
-# @app.get("/list-devices")
-# def list_device(
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     result = list_devices()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error retrieving list device")
-#     return result
-
-# @app.get("/device-information")
-# def dev_information(
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = device_information()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error retrieving device information")
-#     return result
-
-# @app.get("/device-information-detail/{campaign_id}")
-# def dev_information(
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = device_information_detail()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error retrieving device information")
-#     return result
-
-# @app.get("/campaign-summary/{campaign_id}")
-# def campaign_summary(
-#     campaign_id: int,
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     connection = get_db_connection()
-#     try:
-#         cursor = connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        
-#         # Ambil data campaign
-#         cursor.execute("""
-#             SELECT id, name, status, time_start, time_stop, user_id 
-#             FROM campaign 
-#             WHERE id = %s
-#         """, (campaign_id,))
-#         campaign = cursor.fetchone()
-#         if not campaign:
-#             raise HTTPException(status_code=404, detail="Campaign not found")
-        
-#         # Ambil data user berdasarkan campaign.user_id
-#         cursor.execute("""
-#             SELECT id, username, email, role 
-#             FROM users 
-#             WHERE id = %s
-#         """, (campaign["user_id"],))
-#         user = cursor.fetchone()
-        
-#         # Hitung jumlah device yang terlibat di campaign (dari campaign_devices)
-#         cursor.execute("""
-#             SELECT COUNT(*) AS device_count 
-#             FROM campaign_devices 
-#             WHERE campaign_id = %s
-#         """, (campaign_id,))
-#         device_count = cursor.fetchone()["device_count"]
-
-#         # Ambil daftar device yang terlibat dengan join campaign_devices dan devices
-#         cursor.execute("""
-#             SELECT d.id, d.serial_number, d.ip, d.is_connected, d.created_at
-#             FROM campaign_devices cd
-#             JOIN devices d ON cd.device_id = d.id
-#             WHERE cd.campaign_id = %s
-#         """, (campaign_id,))
-#         device_list = cursor.fetchall()
-        
-#         # Hitung jumlah BTS dari GSM
-#         cursor.execute("""
-#             SELECT COUNT(*) AS gsm_count 
-#             FROM gsm_data 
-#             WHERE campaign_id = %s
-#         """, (campaign_id,))
-#         gsm_count = cursor.fetchone()["gsm_count"]
-        
-#         # Hitung jumlah BTS dari LTE
-#         cursor.execute("""
-#             SELECT COUNT(*) AS lte_count 
-#             FROM lte_data 
-#             WHERE campaign_id = %s
-#         """, (campaign_id,))
-#         lte_count = cursor.fetchone()["lte_count"]
-        
-#         total_bts = gsm_count + lte_count
-#         # Diasumsikan jumlah threads sama dengan jumlah device
-#         thread_count = device_count
-        
-#         return {
-#             "status": "success",
-#             "user": user,
-#             "campaign_name": campaign["name"],
-#             "jumlah_device": device_count,
-#             "devices": device_list,
-#             "jumlah_bts": total_bts,
-#             "jumlah_threads": thread_count,
-#             "startcan": campaign["time_start"],
-#             "atop_scan": campaign["time_stop"]
-#         }
-        
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Database error: {e}")
-#     finally:
-#         cursor.close()
-#         connection.close()
-
-# @app.get("/campaign-summary")
-# def campaign_summary_endpoint(
-#     page: int = 1,
-#     limit: int = 10,
-#     current_user: dict = Depends(require_role(["admin", "superadmin"]))
-# ):
-#     result = get_all_campaigns(page=page, limit=limit)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Database error")
-#     return result
-
-# @app.post("/create-device-group")
-# async def create_device_group(
-#     group_name: str = Form(...),
-#     device_ids: str = Form(...),
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     try:
-#         device_ids_list = [int(x.strip()) for x in device_ids.split(",") if x.strip()]
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail="Invalid device_ids format")
-    
-#     conn = get_db_connection()
-#     try:
-#         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-#         # Insert group baru ke tabel device_group
-#         insert_group_query = """
-#             INSERT INTO device_group (group_name, created_at)
-#             VALUES (%s, CURRENT_TIMESTAMP)
-#             RETURNING id;
-#         """
-#         cursor.execute(insert_group_query, (group_name))
-#         group_id = cursor.fetchone()["id"]
-
-#         # Update devices: set group_id pada setiap device yang dipilih
-#         update_device_query = "UPDATE devices SET group_id = %s WHERE id = %s"
-#         for device_id in device_ids_list:
-#             cursor.execute(update_device_query, (group_id, device_id))
-
-#         conn.commit()
-
-#         return {
-#             "status": "success",
-#             "group_id": group_id,
-#             "group_name": group_name,
-#             "device_ids": device_ids_list
-#         }
-#     except Exception as e:
-#         conn.rollback()
-#         raise HTTPException(status_code=500, detail=f"Error creating device group: {e}")
-#     finally:
-#         cursor.close()
-#         conn.close()
-
-# @app.get("/device-groups")
-# def get_device_groups(
-#     current_user: dict = Depends(require_role([ "superadmin"]))
-# ):
-#     result = devicegroup()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error retrieving group information")
-#     return result
-
-# @app.delete("/remove-device-from-group/{device_id}")
-# def remove_device_from_group(
-#     device_id: int,
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     result = remove_device(device_id)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error  remove group")
-#     return result
-
-
-# @app.post("/add-device-to-group")
-# def add_device_to_group(
-#     device_id: int = Form(...),
-#     group_id: int = Form(...),
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     result = addDeviceToGroup(device_id, group_id)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error  add device to group")
-#     return result
-
-# @app.delete("/delete-user/{user_id}")
-# def delete_user(
-#     user_id: int,
-#     current_user: dict = Depends(require_role(["superadmin"]))
-# ):
-#     result = deleteuser(user_id)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error remove user")
-#     return result
-
-
-# @app.put("/edit-user/{user_id}")
-# def edit_user(
-#     user_id: int,
-#     username: str = Form(None),
-#     password: str = Form(None),
-#     group_id: int = Form(None)
-# ):
-#     result = editUser(user_id,username, password, group_id)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error edit user")
-#     return result
-
-
-# @app.get("/users")
-# def list_users():
-#     result = listUser()
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error get list  user")
-#     return result
-
-# @app.get('/password/{user_id}')
-# def get_password(
-#     user_id: int,
-# ):
-#     result = getPassword(user_id)
-#     if result is None:
-#         raise HTTPException(status_code=500, detail="Error get password  user")
-    
-#     return result 
-
 @app.post("/add-devices", status_code=201)
 async def add_device(
     serial_number: str = Form(...),
@@ -883,6 +586,115 @@ async def add_device(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+@app.get("/devices", response_model=List[dict], status_code=200)
+async def get_all_devices():
+    conn = get_db_connection()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                cur.execute("""
+                    SELECT id, serial_number, ip, lat, long, is_connected, is_running, created_at
+                    FROM devices
+                    ORDER BY created_at DESC
+                """)
+                devices = cur.fetchall()
+                return [dict(device) for device in devices]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.put("/edit-device/{device_id}", status_code=200)
+async def edit_device_by_id(
+    device_id: int,
+    serial_number: str = Form(None),
+    ip: str = Form(None),
+    lat: float = Form(None),
+    long: float = Form(None),
+    is_connected: bool = Form(None),
+    is_running: bool = Form(None)
+):
+    conn = get_db_connection()
+    try:
+        with conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+                query = "UPDATE devices SET "
+                updates = []
+                params = []
+                
+                if serial_number is not None:
+                    updates.append("serial_number = %s")
+                    params.append(serial_number)
+                if ip is not None:
+                    updates.append("ip = %s")
+                    params.append(ip)
+                if lat is not None:
+                    updates.append("lat = %s")
+                    params.append(lat)
+                if long is not None:
+                    updates.append("long = %s")
+                    params.append(long)
+                if is_connected is not None:
+                    updates.append("is_connected = %s")
+                    params.append(is_connected)
+                if is_running is not None:
+                    updates.append("is_running = %s")
+                    params.append(is_running)
+                
+                if not updates:
+                    raise HTTPException(status_code=400, detail="No fields to update")
+                
+                query += ", ".join(updates) + " WHERE id = %s"
+                params.append(device_id)
+                
+                cur.execute(query, params)
+                
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Device not found")
+                
+        return {"message": "Device updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.delete("/devices/{device_id}", status_code=200)
+async def delete_device(device_id: int):
+    conn = get_db_connection()
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM campaign_devices WHERE device_id = %s", (device_id,))
+                cur.execute("DELETE FROM lte_data WHERE device_id = %s", (device_id,))
+                cur.execute("DELETE FROM gsm_data WHERE device_id = %s", (device_id,))
+                cur.execute("DELETE FROM devices WHERE id = %s", (device_id,))
+                
+                if cur.rowcount == 0:
+                    raise HTTPException(status_code=404, detail="Device not found")
+                
+        return {
+            "message": "Device deleted successfully",
+            "details": {
+                "campaign_relations_deleted": cur.rowcount,
+                "device_deleted": device_id
+            }
+        }
+    
+    except psycopg2.Error as e:
+        conn.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Database operation failed",
+                "message": str(e),
+                "solution": "Ensure no other tables reference this device"
+            }
+        )
+    
+    finally:
+        conn.close()
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8004)
